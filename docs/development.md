@@ -5,8 +5,10 @@ verifying a change is [testing.md](testing.md).
 
 ## Requirements
 
-- macOS 26 or later (Liquid Glass).
-- Xcode 27: it provides the SwiftUI macro plugin and the SDK.
+- macOS 15 or later on Apple Silicon; native blur replaces Liquid Glass before macOS 26.
+- Xcode 26.2 or later with the macOS 26 SDK; the deployment target remains 15.0.
+  This fork uses explicit binding closures, shorter inference chains and an explicit
+  hotkey-engine initializer for Swift 6.2.3 compatibility.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen), and for linting:
   `brew install swiftlint`.
 - Node, for the generators and the local test stub servers `run-tests.sh` drives. It is the only

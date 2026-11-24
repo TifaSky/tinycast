@@ -239,10 +239,15 @@ final class QuickActionCoordinator {
             core.showMessage(error.localizedDescription, tone: .danger)
             return
         }
+        guard !Task.isCancelled else { return }
         let state = QuickActionPanelState(
             action: action, original: selection, targetLanguage: targetLanguage)
         let previews = store.settings.previewsResult(action)
-        if previews { present(state, target: target) }
+        if previews {
+            present(state, target: target)
+        } else if action.usesTranslationFramework {
+            if #unavailable(macOS 26.0) { present(state, target: target, becomesKey: false) }
+        }
         await perform(state, target: target, previewing: previews)
     }
 
@@ -277,6 +282,7 @@ final class QuickActionCoordinator {
             guard !Task.isCancelled else { return }
             state.finish(text)
             if previewing { return }
+            panels.dismiss(ifShowing: state)
             deliver(text, to: target, action: state.action)
         } catch let error where error is CancellationError || Task.isCancelled {
             return
@@ -285,6 +291,7 @@ final class QuickActionCoordinator {
             if !previewing { present(state, target: target) }
             state.requireLanguageDownload(language)
         } catch {
+            if !previewing { panels.dismiss(ifShowing: state) }
             report(error, state: state, previewing: previewing)
         }
     }
@@ -311,7 +318,8 @@ final class QuickActionCoordinator {
         _ state: QuickActionPanelState, streaming: Bool
     ) async throws -> String {
         if state.action.usesTranslationFramework {
-            return try await TextTranslator.translate(state.original, to: state.targetLanguage)
+            return try await TextTranslator.translate(
+                state.original, to: state.targetLanguage, using: panels.translationSession)
         }
         let provider = try core.quickActionProvider(for: state.action)
         return try await QuickActionRunner.run(
@@ -357,11 +365,18 @@ final class QuickActionCoordinator {
         state.fail(error.localizedDescription)
     }
 
-    private func present(_ state: QuickActionPanelState, target: Target) {
+    private func present(
+        _ state: QuickActionPanelState, target: Target, becomesKey: Bool = true
+    ) {
         panels.present(
             state,
             metrics: settings.interfaceSize.metrics,
             languages: offeredLanguages,
+            becomesKey: becomesKey,
+            onCancel: { [weak self] in
+                guard state.isRunning else { return }
+                self?.cancel()
+            },
             onRetranslate: { [weak self] language in
                 state.targetLanguage = language
                 self?.rerun(state, target: target)

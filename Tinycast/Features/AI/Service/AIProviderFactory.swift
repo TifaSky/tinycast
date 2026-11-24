@@ -1,16 +1,14 @@
-import FoundationModels
 import Foundation
 
 @MainActor
 enum AIProviderFactory {
-    /// `guardrails` reaches only the on-device model, the one route that filters locally.
     static func make(
         selection: AIModelSelection,
         settings: AISettingsStore,
         subscription: ChatGPTSubscriptionManager,
         installedAI: InstalledAIManager,
         keyStore: KeychainSecretStore = .aiAPIKeys,
-        guardrails: SystemLanguageModel.Guardrails = .default,
+        permissiveContentTransformations: Bool = false,
         toolServers: AIToolServerSession? = nil,
         toolSession: AIToolSession? = nil
     ) throws -> any AIProvider {
@@ -23,7 +21,8 @@ enum AIProviderFactory {
             if let message = AppleIntelligenceProvider.status().message {
                 throw AIProviderError.unavailable(message)
             }
-            return AppleIntelligenceProvider(guardrails: guardrails)
+            return AppleIntelligenceProvider(
+                permissiveContentTransformations: permissiveContentTransformations)
         case .codex(let model, let effort):
             guard settings.enabledInstalledProviders.contains(.codex) else {
                 throw AIProviderError.unavailable(String(localized: "Codex is disabled in AI Settings."))

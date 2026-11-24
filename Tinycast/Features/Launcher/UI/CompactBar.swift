@@ -70,24 +70,33 @@ struct CompactBar: View {
     }
 
     /// Left unmasked where it can be: any mask also clips the rim glass draws past its shape.
+    @ViewBuilder
     private func glass(geometry: CompactBarGeometry, revealed: Bool) -> some View {
-        let capsule = Capsule(style: .continuous)
-        // One container, or the buttons could never bead off the capsule they come out of.
-        return GlassEffectContainer(spacing: metrics.scaled(BarMotion.blend)) {
-            ZStack(alignment: .topLeading) {
-                capsule.fill(.clear)
-                    .frame(width: geometry.capsuleWidth(revealed: revealed))
-                    .frame(maxHeight: .infinity)
-                    .glassEffect(.regular, in: capsule)
-                    .animation(
-                        reduceMotion ? nil : BarMotion.capsule.delay(BarMotion.revealDelay),
-                        value: revealed)
-                ForEach(Array(commands.enumerated()), id: \.element) { index, command in
-                    button(command, at: index, geometry: geometry, revealed: revealed)
-                }
+        if #available(macOS 26, *) {
+            // One container, or the buttons could never bead off the capsule they come out of.
+            GlassEffectContainer(spacing: metrics.scaled(BarMotion.blend)) {
+                glassShapes(geometry: geometry, revealed: revealed)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            glassShapes(geometry: geometry, revealed: revealed)
         }
+    }
+
+    private func glassShapes(geometry: CompactBarGeometry, revealed: Bool) -> some View {
+        let capsule = Capsule(style: .continuous)
+        return ZStack(alignment: .topLeading) {
+            capsule.fill(.clear)
+                .frame(width: geometry.capsuleWidth(revealed: revealed))
+                .frame(maxHeight: .infinity)
+                .glassSurface(in: capsule)
+                .animation(
+                    reduceMotion ? nil : BarMotion.capsule.delay(BarMotion.revealDelay),
+                    value: revealed)
+            ForEach(Array(commands.enumerated()), id: \.element) { index, command in
+                button(command, at: index, geometry: geometry, revealed: revealed)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func button(
@@ -106,9 +115,10 @@ struct CompactBar: View {
         .accessibilityLabel(command.name)
         .accessibilityAddTraits(selection == command ? [.isSelected] : [])
         .accessibilityHidden(!revealed)
-        .glassEffect(
-            .regular.tint(selection == command ? Theme.Colors.compactShortcutSelectionTint : nil)
-                .interactive(), in: .circle
+        .glassSurface(
+            in: Circle(),
+            tint: selection == command ? Theme.Colors.compactShortcutSelectionTint : nil,
+            isInteractive: true
         )
         .scaleEffect(revealed ? 1 : BarMotion.parkedScale)
         .position(revealed ? geometry.center(of: index) : geometry.parked)

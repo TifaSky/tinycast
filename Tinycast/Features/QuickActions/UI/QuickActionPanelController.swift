@@ -8,6 +8,8 @@ final class QuickActionPanelController: NSObject, NSWindowDelegate {
     private var state: QuickActionPanelState?
     private var onReplace: ((String) -> Void)?
     private var onRetranslate: ((Locale.Language) -> Void)?
+    private var onCancel: (() -> Void)?
+    let translationSession = TextTranslator.Session()
 
     /// Clear of the pointer, so the panel never opens under the hand that summoned it.
     private static let cursorOffset: CGFloat = 12
@@ -18,6 +20,8 @@ final class QuickActionPanelController: NSObject, NSWindowDelegate {
         _ state: QuickActionPanelState,
         metrics: InterfaceMetrics,
         languages: [Locale.Language],
+        becomesKey: Bool = true,
+        onCancel: @escaping () -> Void,
         onRetranslate: @escaping (Locale.Language) -> Void,
         onReplace: @escaping (String) -> Void
     ) {
@@ -25,6 +29,7 @@ final class QuickActionPanelController: NSObject, NSWindowDelegate {
         self.state = state
         self.onReplace = onReplace
         self.onRetranslate = onRetranslate
+        self.onCancel = onCancel
 
         let hosting = NSHostingView(
             rootView: QuickActionResultView(
@@ -32,11 +37,13 @@ final class QuickActionPanelController: NSObject, NSWindowDelegate {
                 languages: languages,
                 onReplace: { [weak self] in self?.replace(state.output) },
                 onCopy: { [weak self] in self?.copyOutput() },
-                onCancel: { [weak self] in self?.dismiss() },
+                onCancel: { [weak self] in self?.cancel() },
                 onRetranslate: { [weak self] in self?.onRetranslate?($0) },
                 onOpenLanguageSettings: { [weak self] in self?.openLanguageSettings() },
                 onHeight: { [weak self] in self?.resize(toHeight: $0) }
-            ).environment(\.metrics, metrics).motionScope())
+            )
+            .background { TextTranslator.SessionView(session: translationSession) }
+            .environment(\.metrics, metrics).motionScope())
         // The controller owns the frame; without this the top edge drifts as the reply grows.
         hosting.sizingOptions = []
         // Its tallest, so the first frame is never short; the view reports the real height at once.
@@ -50,25 +57,39 @@ final class QuickActionPanelController: NSObject, NSWindowDelegate {
             switch key {
             case .replace: if state.canReplace { self.replace(state.output) }
             case .copy: if state.canReplace { self.copyOutput() }
-            case .cancel: self.dismiss()
+            case .cancel: self.cancel()
             }
         }
         self.panel = panel
         placeAtCursor(panel)
         // Non-activating like the palette: key focus without pulling the reader out of their app.
-        panel.makeKeyAndOrderFront(nil)
+        if becomesKey { panel.makeKeyAndOrderFront(nil) }
         panel.orderFrontRegardless()
     }
 
     func dismiss() {
+        translationSession.cancel()
         guard let closing = panel else { return }
         panel = nil
         state = nil
         onReplace = nil
         onRetranslate = nil
+        onCancel = nil
         closing.delegate = nil
         closing.onKey = nil
         closing.orderOut(nil)
+        closing.contentView = nil
+    }
+
+    func dismiss(ifShowing state: QuickActionPanelState) {
+        guard self.state === state else { return }
+        dismiss()
+    }
+
+    private func cancel() {
+        let callback = onCancel
+        dismiss()
+        callback?()
     }
 
     private func copyOutput() {
@@ -77,7 +98,7 @@ final class QuickActionPanelController: NSObject, NSWindowDelegate {
     }
 
     private func openLanguageSettings() {
-        dismiss()
+        cancel()
         AppLauncher.openSettingsPane(bundleID: Self.languageSettingsPane)
     }
 
@@ -126,6 +147,11 @@ final class QuickActionPanelController: NSObject, NSWindowDelegate {
 
     func windowDidResignKey(_ notification: Notification) {
         guard let panel, notification.object as? NSWindow === panel else { return }
-        dismiss()
+        cancel()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard let panel, notification.object as? NSWindow === panel else { return }
+        cancel()
     }
 }

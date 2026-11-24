@@ -1,8 +1,8 @@
 name: Tinycast
 options:
-  bundleIdPrefix: com.abueammar.tinycast
+  bundleIdPrefix: com.tifasky.tinycast
   deploymentTarget:
-    macOS: "26.0"
+    macOS: "15.0"
   createIntermediateGroups: true
   developmentLanguage: en
   groupSortPosition: top
@@ -12,23 +12,24 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "6.0"
+    ARCHS: arm64
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Manual
     # A stable self-signed identity keeps the Accessibility grant across rebuilds. docs/signing.md
     CODE_SIGN_IDENTITY: "Tinycast Self-Signed"
     SWIFT_STRICT_CONCURRENCY: complete
-    TINYCAST_BUNDLE_IDENTIFIER: com.abueammar.tinycast
-    TINYCAST_URL_SCHEME: tinycast
+    TINYCAST_BUNDLE_IDENTIFIER: com.tifasky.tinycast
+    TINYCAST_URL_SCHEME: tinycast-sequoia
     # iCloud needs a profile, so only a build that names one swaps in TinycastCloud.entitlements.
     TINYCAST_ENTITLEMENTS: Tinycast/Tinycast.entitlements
     TINYCAST_PROVISIONING_PROFILE: ""
   configs:
     Debug:
-      TINYCAST_BUNDLE_IDENTIFIER: com.abueammar.tinycast.dev
+      TINYCAST_BUNDLE_IDENTIFIER: com.tifasky.tinycast.dev
       TINYCAST_CLOUDKIT_ENVIRONMENT: Development
       TINYCAST_APS_ENVIRONMENT: development
       # Its own scheme too, so a link never lands in whichever channel macOS happens to pick.
-      TINYCAST_URL_SCHEME: tinycast-dev
+      TINYCAST_URL_SCHEME: tinycast-sequoia-dev
       DICTATION_EXECUTABLE_NAME: Tinycast Dev Dictation
     Release:
       DICTATION_EXECUTABLE_NAME: Tinycast Dictation

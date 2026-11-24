@@ -5,47 +5,59 @@ import Network
 final class MCPOAuthListener {
     nonisolated static let redirectURI = "http://127.0.0.1:4962/callback"
     private var task: Task<Void, Never>?
+    private var listener: NWListener?
+    private var connections: [UUID: (io: NetworkConnectionIO, task: Task<Void, Never>)] = [:]
     private var ready: CheckedContinuation<Void, Error>?
     private var reply: CheckedContinuation<String, Error>?
     private var result: Result<String, Error>?
     private var accepted = false
 
-    isolated deinit { task?.cancel() }
+    isolated deinit { cancel() }
 
     func start(
         state: String, issuer: String, requiresIssuer: Bool, timeout: Duration = .seconds(300)
     ) async throws {
-        guard result == nil else { throw CancellationError() }
-        let listener = try NetworkListener(
-            using: .parameters { TCP() }
-                .localEndpoint(.hostPort(host: .ipv4(.loopback), port: 4962)))
-        listener.newConnectionLimit = 16
+        guard result == nil, listener == nil else { throw CancellationError() }
+        let parameters = NWParameters.tcp
+        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: 4962)
+        let listener = try NWListener(using: parameters)
         try await withTaskCancellationHandler {
             try Task.checkCancellation()
             try await withCheckedThrowingContinuation { continuation in
                 ready = continuation
-                task = Task { [weak self] in
-                    do {
-                        try await withThrowingTaskGroup(of: Void.self) { group in
-                            group.addTask { [weak self] in
-                                try await self?.run(
-                                    listener, state: state, issuer: issuer, requiresIssuer: requiresIssuer)
-                            }
-                            group.addTask {
-                                try await Task.sleep(for: timeout)
-                                throw MCPOAuth.Failure.timedOut
-                            }
-                            defer { group.cancelAll() }
-                            _ = try await group.next()
+                self.listener = listener
+                listener.stateUpdateHandler = { [weak self] status in
+                    Task { @MainActor [weak self] in self?.listenerChanged(status) }
+                }
+                listener.newConnectionHandler = { [weak self] connection in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.result == nil, self.connections.count < 16 else {
+                            connection.cancel()
+                            return
                         }
-                    } catch {
-                        self?.finish(.failure(error))
+                        let id = UUID()
+                        let io = NetworkConnectionIO(connection)
+                        let task = Task { [weak self] in
+                            defer {
+                                io.cancel()
+                                self?.connections[id] = nil
+                            }
+                            await self?.receive(
+                                io, state: state, issuer: issuer, requiresIssuer: requiresIssuer)
+                        }
+                        self.connections[id] = (io, task)
                     }
+                }
+                listener.start(queue: .main)
+                task = Task { [weak self] in
+                    do { try await Task.sleep(for: timeout) } catch { return }
+                    self?.finish(.failure(MCPOAuth.Failure.timedOut))
                 }
             }
         } onCancel: {
             Task { @MainActor [weak self] in self?.cancel() }
         }
+        try Task.checkCancellation()
     }
 
     func code() async throws -> String {
@@ -69,34 +81,39 @@ final class MCPOAuthListener {
         reply = nil
         task?.cancel()
         task = nil
+        listener?.stateUpdateHandler = nil
+        listener?.newConnectionHandler = nil
+        listener?.cancel()
+        listener = nil
+        for connection in connections.values {
+            connection.io.cancel()
+            connection.task.cancel()
+        }
+        connections = [:]
     }
 
-    private func run(
-        _ listener: NetworkListener<TCP>, state: String, issuer: String, requiresIssuer: Bool
-    ) async throws {
-        try await listener.onStateUpdate { [weak self] _, status in
-            switch status {
-            case .ready:
-                self?.ready?.resume()
-                self?.ready = nil
-            case .waiting, .failed:
-                self?.finish(.failure(MCPOAuth.Failure.listenerUnavailable))
-            default: break
-            }
-        }.run { [weak self] connection in
-            await self?.receive(connection, state: state, issuer: issuer, requiresIssuer: requiresIssuer)
+    private func listenerChanged(_ status: NWListener.State) {
+        guard result == nil else { return }
+        switch status {
+        case .ready:
+            let continuation = ready
+            ready = nil
+            continuation?.resume()
+        case .waiting, .failed:
+            finish(.failure(MCPOAuth.Failure.listenerUnavailable))
+        default: break
         }
     }
 
     private func read(
-        _ connection: NetworkConnection<TCP>, state: String, issuer: String, requiresIssuer: Bool
+        _ connection: NetworkConnectionIO, state: String, issuer: String, requiresIssuer: Bool
     ) async throws {
         var bytes = Data()
         while bytes.count < 8192 {
-            let message = try await connection.receive(atLeast: 1, atMost: 8192 - bytes.count)
+            let message = try await connection.receive(maximumLength: 8192 - bytes.count)
             bytes.append(message.content)
             if bytes.range(of: Data("\r\n\r\n".utf8)) != nil { break }
-            if message.metadata.endOfStream { return }
+            if message.endOfStream { return }
         }
         guard !accepted else { return }
         guard let request = String(bytes: bytes, encoding: .utf8), request.contains("\r\n\r\n") else {
@@ -126,7 +143,7 @@ final class MCPOAuthListener {
             + "Connection: close\r\nContent-Length: \(page.utf8.count)\r\n\r\n\(page)"
         if outcome != nil { self.accepted = true }
         do {
-            try await connection.send(Data(response.utf8), endOfStream: true)
+            try await connection.send(Data(response.utf8))
         } catch {
             if let outcome { self.finish(outcome) }
             throw error
@@ -135,7 +152,7 @@ final class MCPOAuthListener {
     }
 
     private func receive(
-        _ connection: NetworkConnection<TCP>, state: String, issuer: String, requiresIssuer: Bool
+        _ connection: NetworkConnectionIO, state: String, issuer: String, requiresIssuer: Bool
     ) async {
         do {
             try await withThrowingTaskGroup(of: Void.self) { group in

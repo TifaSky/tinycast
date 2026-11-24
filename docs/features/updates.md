@@ -1,5 +1,9 @@
 # Updates
 
+This fork's `com.tifasky.tinycast` identifiers use the development channel and do
+not check for or install upstream releases. The behaviour below describes the
+upstream stable and beta channels. See [macOS 15](../macos15.md).
+
 By default, Tinycast checks GitHub Releases twice a day and offers the newest release for its own
 channel in a pill in the palette, then installs it at the next relaunch or quit. There is no Sparkle
 and no appcast: the release feed the website already reads is the feed the app reads.

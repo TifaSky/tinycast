@@ -8,8 +8,9 @@ dependencies.
 
 ## Posture: modern-first, always
 
-**Tinycast supports macOS 26 and later, with macOS 27 strongly preferred.** Swift 6+ with complete
-strict concurrency is required. Prefer the latest Swift patterns and modern Apple APIs.
+**This fork supports macOS 15 and later on Apple Silicon (arm64).** Swift 6+ with complete
+strict concurrency is required. Keep macOS 26 APIs behind availability checks with functional
+macOS 15 fallbacks; FoundationModels is unavailable on macOS 15.
 
 Prefer current APIs and language features:
 
@@ -26,8 +27,8 @@ Prefer current APIs and language features:
 - **A deprecated API is a defect**, not a warning to live with.
 - **Verify API and language-feature availability** against the SDK and compiler used by the build
   and CI. Use direct availability checks where macOS 27+ APIs require them to preserve macOS 26 support.
-- **No compatibility layers, legacy workarounds or obsolete patterns.** No support below macOS 26 or
-  speculative fallbacks. Keep the implementation direct. Migration code lives only in
+- **Keep compatibility changes narrow.** Support macOS 15 without changing modern-system behaviour.
+  Reuse native materials and existing notification ownership. Migration code lives only in
   `Tinycast/Migrations/` and is deleted after one stable release ([migrations.md](docs/migrations.md)).
 
 Carbon is a deliberate capability-gap dependency rather than inertia: nothing modern registers a

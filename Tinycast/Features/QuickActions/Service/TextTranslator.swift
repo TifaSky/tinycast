@@ -1,8 +1,9 @@
 import Foundation
 import NaturalLanguage
+import Observation
+import SwiftUI
 import Translation
 
-/// `TranslationError` is macOS 26.4 against a 26.0 floor, so failures stay plain `Error` here.
 enum TextTranslator {
     enum Failure: LocalizedError, Equatable {
         case undetectableSource
@@ -43,13 +44,16 @@ enum TextTranslator {
     }
 
     /// Installed pairs only: a missing language is downloaded in System Settings, never from here.
-    static func translate(_ text: String, to target: Locale.Language) async throws -> String {
+    static func translate(
+        _ text: String, to target: Locale.Language, using session: Session
+    ) async throws -> String {
+        try Task.checkCancellation()
         guard let source = sourceLanguage(of: text) else { throw Failure.undetectableSource }
         guard !isSameLanguage(source, target) else { return text }
         let availability = LanguageAvailability()
         switch await availability.status(from: source, to: target) {
         case .installed:
-            return try await translate(text, from: source, to: target)
+            return try await translate(text, from: source, to: target, using: session)
         case .supported:
             break
         case .unsupported:
@@ -61,7 +65,7 @@ enum TextTranslator {
         let sources = variants(of: source, among: supported)
         let targets = variants(of: target, among: supported)
         if let pair = await installedPair(sources, targets, availability) {
-            return try await translate(text, from: pair.source, to: pair.target)
+            return try await translate(text, from: pair.source, to: pair.target, using: session)
         }
         // Every source spelling already failed, so only a third language can prove the target.
         let partners = supported.filter {
@@ -72,14 +76,105 @@ enum TextTranslator {
     }
 
     private static func translate(
-        _ text: String, from source: Locale.Language, to target: Locale.Language
+        _ text: String, from source: Locale.Language, to target: Locale.Language, using session: Session
     ) async throws -> String {
         do {
-            let session = TranslationSession(installedSource: source, target: target)
-            return try await session.translate(text).targetText
+            try Task.checkCancellation()
+            let translated: String
+            if #available(macOS 26.0, *) {
+                let session = TranslationSession(installedSource: source, target: target)
+                translated = try await session.translate(text).targetText
+            } else {
+                translated = try await session.translate(text, from: source, to: target)
+            }
+            try Task.checkCancellation()
+            return translated
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             try Task.checkCancellation()
             throw Failure.failed
+        }
+    }
+
+    /// macOS 15 lends a session only while its SwiftUI task remains in the hosted hierarchy.
+    @MainActor
+    @Observable
+    final class Session {
+        struct Request {
+            let id = UUID()
+            let text: String
+            let configuration: TranslationSession.Configuration
+        }
+
+        private(set) var request: Request?
+        @ObservationIgnored private var continuation: CheckedContinuation<String, any Error>?
+
+        func translate(
+            _ text: String, from source: Locale.Language, to target: Locale.Language
+        ) async throws -> String {
+            try Task.checkCancellation()
+            cancel()
+            let request = Request(
+                text: text, configuration: .init(source: source, target: target))
+            let id = request.id
+            return try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    guard !Task.isCancelled else {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
+                    self.continuation = continuation
+                    self.request = request
+                }
+            } onCancel: {
+                Task { @MainActor in self.finish(id, with: .failure(CancellationError())) }
+            }
+        }
+
+        func cancel() {
+            guard let request else { return }
+            finish(request.id, with: .failure(CancellationError()))
+        }
+
+        fileprivate func finish(_ id: UUID, with result: Result<String, any Error>) {
+            guard request?.id == id else { return }
+            let continuation = continuation
+            self.continuation = nil
+            request = nil
+            assert(continuation != nil)
+            continuation?.resume(with: result)
+        }
+    }
+
+    struct SessionView: View {
+        let session: Session
+
+        var body: some View {
+            if let request = session.request {
+                Color.clear
+                    .translationTask(
+                        request.configuration,
+                        action: Self.translationAction(id: request.id, text: request.text, owner: session))
+                    .onDisappear {
+                        session.finish(request.id, with: .failure(CancellationError()))
+                    }
+                    .id(request.id)
+            }
+        }
+
+        nonisolated private static func translationAction(
+            id: UUID, text: String, owner: Session
+        ) -> (TranslationSession) async -> Void {
+            { native in
+                do {
+                    let translated = try await native.translate(text).targetText
+                    try Task.checkCancellation()
+                    await owner.finish(id, with: .success(translated))
+                } catch {
+                    await owner.finish(id, with: .failure(error))
+                }
+            }
         }
     }
 
@@ -89,10 +184,8 @@ enum TextTranslator {
         _ availability: LanguageAvailability
     ) async -> (source: Locale.Language, target: Locale.Language)? {
         for source in sources {
-            for target in targets {
-                if await availability.status(from: source, to: target) == .installed {
-                    return (source, target)
-                }
+            for target in targets where await availability.status(from: source, to: target) == .installed {
+                return (source, target)
             }
         }
         return nil

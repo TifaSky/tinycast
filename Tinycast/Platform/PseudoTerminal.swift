@@ -28,7 +28,19 @@ final class PseudoTerminal: @unchecked Sendable {
 
         var actions: posix_spawn_file_actions_t?
         posix_spawn_file_actions_init(&actions)
-        posix_spawn_file_actions_addchdir(&actions, workingDirectory)
+        let directoryStatus: Int32
+        if #available(macOS 26, *) {
+            directoryStatus = posix_spawn_file_actions_addchdir(&actions, workingDirectory)
+        } else {
+            directoryStatus = posix_spawn_file_actions_addchdir_np(&actions, workingDirectory)
+        }
+        guard directoryStatus == 0 else {
+            posix_spawnattr_destroy(&attributes)
+            posix_spawn_file_actions_destroy(&actions)
+            Darwin.close(parentEnd)
+            Darwin.close(childEnd)
+            return nil
+        }
         for descriptor in Int32(0)...Int32(2) {
             posix_spawn_file_actions_adddup2(&actions, childEnd, descriptor)
         }

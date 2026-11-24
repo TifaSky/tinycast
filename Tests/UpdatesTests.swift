@@ -108,6 +108,10 @@ struct UpdatesTests {
         expect(beta == .beta, "the beta bundle id is the beta channel")
         expect(dev == .development, "the dev bundle id is a local build")
         expect(ReleaseChannel(bundleID: nil) == .development, "a missing bundle id never updates")
+        for bundleID in ["com.tifasky.tinycast", "com.tifasky.tinycast.dev"] {
+            expect(!ReleaseChannel(bundleID: bundleID).updatesItself,
+                   "the macOS 15 fork never installs an upstream macOS 26 update")
+        }
 
         expect(stable.updatesItself && beta.updatesItself, "both shipped channels update")
         expect(!dev.updatesItself, "a local build does not update itself")

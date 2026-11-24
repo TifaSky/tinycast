@@ -19,12 +19,27 @@ struct AppleIntelligenceTests {
     static func main() async {
         statusCopyCoversEveryReason()
         deltasFollowCumulativeSnapshots()
-        turnsSplitThePromptFromItsHistory()
-        generationErrorsBecomeReadableFailures()
-        if ProcessInfo.processInfo.environment["TINYCAST_TEST_APPLE_INTELLIGENCE"] == "1" {
-            await onDeviceModelAnswers()
+        if #available(macOS 26, *) {
+            turnsSplitThePromptFromItsHistory()
+            generationErrorsBecomeReadableFailures()
+            if ProcessInfo.processInfo.environment["TINYCAST_TEST_APPLE_INTELLIGENCE"] == "1" {
+                await onDeviceModelAnswers()
+            } else {
+                print("skip  on-device stream — set TINYCAST_TEST_APPLE_INTELLIGENCE=1 to run")
+            }
         } else {
-            print("skip  on-device stream — set TINYCAST_TEST_APPLE_INTELLIGENCE=1 to run")
+            expect(!AppleIntelligenceProvider.status().isSupported, "macOS 15 cannot run FoundationModels")
+            do {
+                for try await _ in AppleIntelligenceProvider().stream(AIRequest(messages: [])) {
+                    expect(false, "an unsupported system must never generate a response")
+                }
+                expect(false, "an unsupported system must report an unavailable provider")
+            } catch let error as AIProviderError {
+                expect(error.localizedDescription == AppleIntelligenceStatus.deviceNotEligible.message,
+                       "macOS 15 reports an unavailable provider")
+            } catch {
+                expect(false, "unexpected unsupported-system error: \(error)")
+            }
         }
 
         print("\(passes) passed, \(failures) failed")
@@ -68,6 +83,7 @@ struct AppleIntelligenceTests {
         expect(repeated.delta(from: "Hello").isEmpty, "an unchanged snapshot emits nothing")
     }
 
+    @available(macOS 26, *)
     static func turnsSplitThePromptFromItsHistory() {
         let request = AIRequest(
             instructions: "Be brief.",
@@ -112,6 +128,7 @@ struct AppleIntelligenceTests {
         expect(empty.prompt == nil, "a request with no user turn has no prompt")
     }
 
+    @available(macOS 26, *)
     static func generationErrorsBecomeReadableFailures() {
         let context = LanguageModelSession.GenerationError.Context(
             debugDescription: "internal-detail-42")
@@ -136,6 +153,7 @@ struct AppleIntelligenceTests {
             "a decoding failure is the shared malformed-response case")
     }
 
+    @available(macOS 26, *)
     static func onDeviceModelAnswers() async {
         let status = AppleIntelligenceProvider.status()
         guard status.isAvailable else {
@@ -163,11 +181,13 @@ struct AppleIntelligenceTests {
         expect(finished, "the on-device stream terminated with .finished")
     }
 
+    @available(macOS 26, *)
     private static func text(_ segments: [Transcript.Segment]) -> String {
         segments.compactMap { if case .text(let segment) = $0 { segment.content } else { nil } }
             .joined()
     }
 
+    @available(macOS 26, *)
     private static func entryText(_ entry: Transcript.Entry) -> String {
         switch entry {
         case .instructions(let value): return text(value.segments)

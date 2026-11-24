@@ -87,8 +87,8 @@ struct UpdatePill: View {
         .padding(.leading, metrics.spacing.lg)
         .padding(.trailing, metrics.spacing.xs)
         .frame(height: metrics.size.menuButton)
-        .glassEffect(
-            .regular.tint(content.tint.opacity(Self.tintOpacity)).interactive(), in: Capsule()
+        .glassSurface(
+            in: Capsule(), tint: content.tint.opacity(Self.tintOpacity), isInteractive: true
         )
         .fixedSize()
         .padding(.leading, metrics.spacing.md)

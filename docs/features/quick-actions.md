@@ -60,7 +60,8 @@ selectable Markdown renderer with AI Chat.
   selection stores its effort in `quickActionModel`, independently of chat's effort. The sheets use the
   same `AIModelSelectionRows`, with **Same as Quick Actions** as the `nil` choice.
 - **The reader's own text gets permissive guardrails.** `AppCore.quickActionProvider()` asks for
-  `SystemLanguageModel.Guardrails.permissiveContentTransformations`. The default filter is tuned for
+  `permissiveContentTransformations`, resolved to `SystemLanguageModel.Guardrails.permissiveContentTransformations`
+  only on macOS 26 and later. The default filter is tuned for
   a model writing fresh prose and refuses to transform text somebody already wrote, which is the
   whole feature.
 - **Built-in instructions treat the selection as untrusted input.** `QuickActionPrompt` tells the
@@ -148,9 +149,13 @@ whatever a missing key would have meant.
 ## Translation
 
 `TextTranslator` uses Apple's translator rather than the language model: it runs on device, costs
-nothing on every route, and a 3B model is markedly worse at it. `NLLanguageRecognizer` supplies the
-source language, because `TranslationSession(installedSource:target:)` needs a concrete one and
-`LanguageAvailability` reports only a status.
+nothing on every route, and a 3B model is markedly worse at it. On macOS 15, the
+existing result panel hosts a SwiftUI `.translationTask` and owns its pending request.
+A direct-replace action briefly shows a non-key progress panel, keeping the selected
+app focused. Closing the panel or cancelling the action settles the pending request.
+On macOS 26 and later, `TranslationSession(installedSource:target:)` remains the direct
+path. `NLLanguageRecognizer` supplies the concrete source language, while
+`LanguageAvailability` reports whether its assets are installed.
 
 **The reader's own languages weigh twenty times more.** The recognizer misreads single words:
 `reproducible` scores 0.92 Spanish and `conundrum` reads as Portuguese, so a Mac with only English and

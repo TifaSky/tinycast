@@ -180,6 +180,7 @@ struct NotesEditorTests {
         check("native Cut removes the selected source", !editor.textView.string.contains("**bold**"))
         editor.coordinator.editorUndoManager.undo()
         check("native Undo restores the literal source", editor.textView.string == source)
+        check("native Undo publishes synchronously", changes.last == source)
         editor.coordinator.editorUndoManager.redo()
         check("native Redo restores the cut", editor.textView.string == changes.last)
 

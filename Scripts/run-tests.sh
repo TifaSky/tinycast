@@ -872,6 +872,7 @@ run AIProviderTests        Tinycast/Features/Settings/AppSettingsKey.swift \
                            Tinycast/Features/AI/Service/InstalledAIProbe.swift \
                            Tinycast/Platform/ExecutableLocator.swift Tinycast/Platform/ProcessExit.swift
 run OpenCodeMCPTests       Tinycast/Features/AI/Model/*.swift \
+                           Tinycast/Platform/NetworkConnectionIO.swift \
                            Tinycast/Platform/ExecutableLocator.swift Tinycast/Platform/ProcessExit.swift \
                            Tinycast/Features/AI/Service/AIProvider.swift \
                            Tinycast/Features/AI/Service/AIToolLoopProvider.swift \
@@ -975,11 +976,14 @@ run QuickActionTests       Tinycast/Features/Settings/AppSettingsKey.swift \
                            Tinycast/Features/QuickActions/Model/QuickActionSettings.swift \
                            Tinycast/Features/QuickActions/Settings/QuickActionSettingsStore.swift \
                            Tinycast/Platform/LocalizedResource.swift
+run TranslationSessionTests Tinycast/Features/QuickActions/Service/TextTranslator.swift \
+                            Tinycast/Platform/SystemLanguages.swift
 run AppleIntelligenceTests Tinycast/Features/Settings/AppSettingsKey.swift \
                            Tinycast/Features/AI/Model/*.swift \
                            Tinycast/Features/AI/Service/AIProvider.swift \
                            Tinycast/Features/AI/Service/AppleIntelligenceProvider.swift
 run MCPOAuthTests          Tinycast/Platform/ExecutableLocator.swift \
+                           Tinycast/Platform/NetworkConnectionIO.swift \
                            Tinycast/Platform/ProcessExit.swift \
                            Tinycast/Platform/KeychainSecretStore.swift \
                            Tinycast/Features/Settings/AppSettingsKey.swift \
@@ -997,6 +1001,7 @@ run MCPOAuthTests          Tinycast/Platform/ExecutableLocator.swift \
                            Tinycast/Features/MCP/Model/*.swift \
                            Tinycast/Features/MCP/Service/*.swift $SYNC
 run slow MCPStdioTests     Tinycast/Platform/ExecutableLocator.swift \
+                           Tinycast/Platform/NetworkConnectionIO.swift \
                            Tinycast/Platform/ProcessExit.swift \
                            Tinycast/Platform/KeychainSecretStore.swift \
                            Tinycast/Features/Settings/AppSettingsKey.swift \

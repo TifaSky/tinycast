@@ -6,6 +6,11 @@ with what's already there. This documents **Tinycast as built**: every rule here
 
 Read this before touching any view body, `Theme` value, or the panel chrome.
 
+In this fork, the Liquid Glass descriptions below apply to macOS 26 and later.
+On macOS 15, `glassSurface` uses native thin material, a hairline and a soft shadow;
+`GlassEffectView` uses AppKit vibrancy. Layout, actions, appearance and accessibility
+stay the same. See [macos15.md](macos15.md).
+
 ---
 
 ## The look, in one paragraph

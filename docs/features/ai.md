@@ -11,6 +11,13 @@ asks what you typed, and the answer appears in place. **AI Chat** is a window: s
 in a sidebar on the left, the open one on the right, and a composer at the bottom with the model
 picker. ⌘J hands a Quick AI conversation to the window.
 
+## macOS 15
+
+FoundationModels is guarded at the provider boundary. The common factory accepts a
+plain `permissiveContentTransformations` flag instead of a new-system framework type.
+On macOS 15, Apple Intelligence reports unsupported and streams fail with an unavailable
+provider error; API and installed providers keep their existing behaviour.
+
 ## Invariants
 
 - **AI is off out of the box, and off means fully off.** `AppSettings.aiEnabled` is the flag:

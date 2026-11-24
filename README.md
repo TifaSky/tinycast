@@ -1,3 +1,13 @@
+# macOS 15 · Apple Silicon fork
+
+This fork supports **macOS 15 Sequoia and later on Apple Silicon (arm64)**.
+Liquid Glass uses native blurred materials on macOS 15. Apple Intelligence's
+FoundationModels provider requires macOS 26; other AI providers remain available.
+The fork uses `com.tifasky.tinycast` (Debug: `.dev`) and does not install upstream updates.
+See [macOS 15 build and verification](docs/macos15.md).
+
+The upstream website, Homebrew cask and releases below describe the original project.
+
 <h1 align="center">
   <a href="https://tinycast.dev"><img src="docs/images/icon.png" alt="Tinycast app icon" width="128" height="128"></a><br>
   Tinycast

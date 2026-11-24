@@ -5,7 +5,8 @@ enum Theme {
     /// macOS 26 glass casts its own shadow; on 27 bare glass has none and needs the window's.
     static var glassCastsShadow: Bool {
         if #available(macOS 27, *) { return false }
-        return true
+        if #available(macOS 26, *) { return true }
+        return false
     }
 
     enum Spacing {
@@ -617,8 +618,37 @@ enum Theme {
     }
 }
 
+private struct GlassSurface<Surface: Shape>: ViewModifier {
+    let shape: Surface
+    let tint: Color?
+    let isInteractive: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            content.glassEffect(.regular.tint(tint).interactive(isInteractive), in: shape)
+        } else {
+            content.background {
+                shape.fill(.ultraThinMaterial)
+                    .overlay { shape.fill(tint ?? .clear) }
+                    .overlay { shape.stroke(Theme.Colors.border, lineWidth: Theme.Size.hairline) }
+                    .shadow(
+                        color: Theme.Colors.tooltipShadow, radius: Theme.Spacing.sm,
+                        y: Theme.Spacing.xxs)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+}
+
 extension View {
+    func glassSurface(
+        in shape: some Shape, tint: Color? = nil, isInteractive: Bool = false
+    ) -> some View {
+        modifier(GlassSurface(shape: shape, tint: tint, isInteractive: isInteractive))
+    }
+
     func frosted(in shape: some Shape) -> some View {
-        glassEffect(.regular.interactive(), in: shape)
+        glassSurface(in: shape, isInteractive: true)
     }
 }

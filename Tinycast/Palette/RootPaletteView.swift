@@ -364,7 +364,11 @@ struct RootPaletteView: View {
                 .background(isCollapsed ? .clear : Theme.Colors.panelScrim)
                 // Square, as rounded glass feathers its edge; the clip alone cuts a crisp corner.
                 .background {
-                    Color.clear.glassEffect(isCollapsed ? .identity : .regular, in: Rectangle())
+                    if #available(macOS 26, *) {
+                        Color.clear.glassEffect(isCollapsed ? .identity : .regular, in: Rectangle())
+                    } else if !isCollapsed {
+                        GlassEffectView()
+                    }
                 }
                 .overlay {
                     Theme.Colors.dialogDimming
@@ -416,7 +420,7 @@ struct RootPaletteView: View {
 
     /// Split from `body` for the same reason `keyHandlers` is: one chain cannot carry them all.
     @ViewBuilder
-    private func stateObservers(_ content: some View) -> some View {
+    private func queryObservers(_ content: some View) -> some View {
         emojiObservers(content)
             // Every show bumps focusToken so the search field refocuses.
             .onChange(of: vm.focusToken) {
@@ -459,6 +463,11 @@ struct RootPaletteView: View {
                 land()
                 fileSearch.search(vm.query, filter: vm.fileSearchFilter)
             }
+    }
+
+    @ViewBuilder
+    private func stateObservers(_ content: some View) -> some View {
+        queryObservers(content)
             .onChange(of: vm.mode) {
                 vm.clipboardFilter = .all
                 vm.fileSearchFilter = .all

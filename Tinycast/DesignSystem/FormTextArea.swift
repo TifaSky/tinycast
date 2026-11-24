@@ -69,6 +69,11 @@ struct FormTextArea: NSViewRepresentable {
             if let storage = view.textStorage {
                 let range = NSRange(location: 0, length: storage.length)
                 view.breakUndoCoalescing()
+                // Sequoia leaves the event's typing group open after breaking text coalescing.
+                if #unavailable(macOS 26), let undo = view.undoManager, undo.groupingLevel == 1 {
+                    undo.endUndoGrouping()
+                    undo.beginUndoGrouping()
+                }
                 if view.shouldChangeText(in: range, replacementString: text) {
                     storage.replaceCharacters(in: range, with: text)
                     view.didChangeText()
